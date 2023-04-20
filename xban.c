@@ -18,7 +18,7 @@ static void hide_cursor(void);
 static void quit(int unused);
 static void run(void);
 static void runcmd(char *array[]);
-static void setcmd(char *array[]);
+static void setcmd(char *array[], char *string);
 static void setup(void);
 static void show_cursor(void);
 static void usage(void);
