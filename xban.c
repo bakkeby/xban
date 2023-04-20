@@ -11,11 +11,14 @@
 
 /* macros */
 #define arg(A) (!strcmp(argv[i], A))
+#define MAXARGS 60
 
 static void genericevent(XEvent *e);
 static void hide_cursor(void);
 static void quit(int unused);
 static void run(void);
+static void runcmd(char *array[]);
+static void setcmd(char *array[]);
 static void setup(void);
 static void show_cursor(void);
 static void usage(void);
@@ -23,6 +26,8 @@ static void usage(void);
 static volatile int running = 1;
 static int cursor_hidden = 0;
 static int xi_opcode;
+static char *hidecmd[MAXARGS] = {0};
+static char *showcmd[MAXARGS] = {0};
 static Display *dpy;
 static Window root;
 static void (*handler[LASTEvent]) (XEvent *) = {
@@ -58,6 +63,8 @@ hide_cursor(void)
 {
 	if (cursor_hidden)
 		return;
+
+	runcmd(hidecmd);
 	XFixesHideCursor(dpy, root);
 	cursor_hidden = 1;
 }
@@ -108,6 +115,36 @@ run(void)
 }
 
 void
+runcmd(char *array[])
+{
+	if (!array[0])
+		return;
+
+	if (fork() == 0) {
+		setsid();
+		execvp(array[0], array);
+		fprintf(stderr, "Failed to execute command %s\n", array[0]);
+		exit(1);
+	}
+}
+
+void
+setcmd(char *array[], char *string)
+{
+	char *token;
+	int i = 0;
+
+	token = strtok(string, " ");
+	while (token != NULL && i < MAXARGS) {
+		if (strlen(token) > 0) {
+			array[i++] = token;
+		}
+
+		token = strtok(NULL, " ");
+	}
+}
+
+void
 setup(void)
 {
 	signal(SIGINT, quit);
@@ -120,7 +157,9 @@ show_cursor(void)
 {
 	if (!cursor_hidden)
 		return;
+
 	XFixesShowCursor(dpy, root);
+	runcmd(showcmd);
 	cursor_hidden = 0;
 }
 
@@ -136,6 +175,8 @@ usage(void)
 	fprintf(stdout, ofmt, "-h", "print this help section");
 	fprintf(stdout, ofmt, "-v", "print version information and exit");
 	fprintf(stdout, ofmt, "-f", "fork the process (i.e run in the background)");
+	fprintf(stdout, ofmt, "--hidecmd", "external command to run when hiding the mouse cursor");
+	fprintf(stdout, ofmt, "--showcmd", "external command to run when revealing the mouse cursor");
 
 	fprintf(stdout, "\nSee the man page for more details.\n\n");
 	exit(0);
@@ -150,6 +191,10 @@ main(int argc, char *argv[])
 		if (arg("-v") || arg("--version")) { /* prints version information */
 			puts("xban-"VERSION);
 			exit(0);
+		} else if (arg("--hidecmd")) {
+			setcmd(hidecmd, argv[++i]);
+		} else if (arg("--showcmd")) {
+			setcmd(showcmd, argv[++i]);
 		} else if (arg("-f") || arg("--fork")) {
 			if (fork() != 0)
 				exit(0);
